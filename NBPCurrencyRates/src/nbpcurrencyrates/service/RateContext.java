@@ -1,5 +1,6 @@
 package nbpcurrencyrates.service;
 
+import java.util.Calendar;
 import java.util.Date;
 
 public class RateContext {
@@ -12,4 +13,6 @@ public class RateContext {
 	public Currency getCurrency(String code, Date date) {
 		return strategy.getCurrency(code, date);
 	}
+	
+	//public void changeCode(String newCode, int id) {};
 }

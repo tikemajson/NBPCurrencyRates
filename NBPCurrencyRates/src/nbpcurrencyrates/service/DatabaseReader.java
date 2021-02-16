@@ -24,8 +24,29 @@ public class DatabaseReader implements RateService{
 		return rateContext.getCurrency(code, date);
 	}
 	
-	public void setCountry(@SuppressWarnings("exports") List<CountryCode> countryList, int currencyId) {
-		
+	public void setCountry(int currencyId, String code) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		EntityTransaction entityTransaction = null;
+		CurrencyCode currencyCode = CurrencyCode.getByCode(code);
+		List<CountryCode> countryList = currencyCode.getCountryList();
+		CountryDataBase countryDataBase = null;
+		try {
+			System.out.println("Set country 1");
+			entityTransaction = entityManager.getTransaction();
+			entityTransaction.begin();
+			for (CountryCode countryCode : countryList) {
+				countryDataBase = new CountryDataBase();
+				countryDataBase.setCode(code);
+				countryDataBase.setCountry(countryCode.getName());
+				countryDataBase.setCurrencyID(currencyId);
+				entityManager.persist(countryDataBase);
+				entityTransaction.commit();
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			entityManager.close();
+		}
 	}
 	
 	public List<CountryDataBase> findCountry(int currencyId, String code) {
@@ -35,12 +56,12 @@ public class DatabaseReader implements RateService{
 		typedQuery.setParameter("CurrencyID", currencyId);
 		List<CountryDataBase> countryList;
 		try {
+			System.out.println("Find country 1");
 			countryList = typedQuery.getResultList();
 			return countryList;
 		} catch (NoResultException e) {
-			CurrencyCode currencyCode = CurrencyCode.getByCode(code);
-			List<CountryCode> countryCodeList = currencyCode.getCountryList();
-			setCountry(countryCodeList, currencyId);
+			System.out.println("Find country 2");
+			setCountry(currencyId, code);
 			countryList = typedQuery.getResultList();
 			return countryList;
 		} finally {
@@ -57,15 +78,21 @@ public class DatabaseReader implements RateService{
 		Currency currency = findCurrency(code, new Date());
 		try {
 			currencyDateBase = typedQuery.getSingleResult();
+			List<CountryDataBase> countryList = findCountry(currencyDateBase.getId(), code);
 			if(currency.getDate().after(date)) {
 				changeDate(currency.getDate(), currencyDateBase.getId());
 				currencyDateBase = typedQuery.getSingleResult();
 			}
 			return currencyDateBase;
 		} catch (NoResultException e) {
-			addCurrency(currency.getName(), currency.getCode(), currency.getMid().doubleValue(), currency.getDate());
-			currencyDateBase = typedQuery.getSingleResult();
-			return currencyDateBase;
+			if(currency != null) {
+				addCurrency(currency.getName(), currency.getCode(), currency.getMid().doubleValue(), currency.getDate());
+				List<CountryDataBase> countryList = findCountry(currencyDateBase.getId(), code);
+				currencyDateBase = typedQuery.getSingleResult();
+				return currencyDateBase;
+			} else {
+				throw new NoResultDatabaseException("Currency not found.");
+			}
 		} finally {
 			entityManager.close();
 		}

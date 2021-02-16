@@ -21,13 +21,13 @@ public class CurrencyDateBase{;
 	@Column(name = "CurrencyName", nullable = true)
 	private String name;
 	
-	@Column(name = "CurrencyCode", unique = true)
+	@Column(name = "CurrencyCode", nullable = false)
 	private String code;
 	
-	@Column(name = "mid", nullable = false)
+	@Column(name = "CurrencyMid", nullable = false)
 	private double mid;
 	
-	@Column(name = "date", nullable = false)
+	@Column(name = "CurrencyDate", nullable = false)
 	private Date date;
 	
 	public void setName(String name) {

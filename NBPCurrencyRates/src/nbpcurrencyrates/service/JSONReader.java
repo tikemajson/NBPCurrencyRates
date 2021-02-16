@@ -60,7 +60,7 @@ public class JSONReader implements RateService{
 			if(closeableHttpResponse.getStatusLine().getStatusCode() == 200) {
 				return EntityUtils.toString(httpEntity);
 			} else {
-				throw new DataNotFoundException("Data not found.");
+				throw new DataNotFoundException("Currency not found.");
 			}
 		} catch (ConnectException ce) {
 			throw new TimeOutException("Connection timeout.");
