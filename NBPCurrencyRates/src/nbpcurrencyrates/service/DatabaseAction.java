@@ -20,6 +20,21 @@ import nbpcurrencyrates.exception.NoResultDatabaseException;
 public class DatabaseAction {
 	private static EntityManagerFactory entityManagerFactory = Persistence.createEntityManagerFactory("NBPCurrencyRates");
 	
+	public void setEntity(CountryTable country) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		EntityTransaction entityTransaction = null;
+		try {
+			entityTransaction = entityManager.getTransaction();
+			entityTransaction.begin();
+			entityManager.persist(country);
+			entityTransaction.commit();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			entityManager.close();
+		}
+	}
+	
 	public List<CurrencyTable> getMinAndMaxValueInPeriod(String code) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		String query = "SELECT currency FROM CurrencyTable currency WHERE LOWER(currency.code) = LOWER(:CurrencyCode) AND (currency.mid = (SELECT MIN(currency.mid) FROM CurrencyTable currency) OR currency.mid = (SELECT MAX(currency.mid) FROM CurrencyTable currency))";
@@ -57,7 +72,7 @@ public class DatabaseAction {
 		}
 	}
 	
-	public void AddCountryListToCurrency(long id, String code) {
+	public void AddCountryListToCurrency(String code) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		EntityTransaction entityTransaction = null;
 		CurrencyCode currencyCode = CurrencyCode.getByCode(code);
@@ -74,24 +89,13 @@ public class DatabaseAction {
 		entityManager.close();
 	}
 	
-	public void addOneCountryToCurrency(long id, String code) {
-		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
+	public void addOneCountryToCurrency(String code) {
 		CountryTable countryDataBase = new CountryTable();
 		CurrencyCode currencyCode = CurrencyCode.getByCode(code);
 		CountryCode countryCode = currencyCode.getCountryList().get(0);
-		try {
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			countryDataBase.setCode(code);
-			countryDataBase.setCountry(countryCode.getName());
-			entityManager.persist(countryDataBase);
-			entityTransaction.commit();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		} finally {
-			entityManager.close();
-		}
+		countryDataBase.setCode(code);
+		countryDataBase.setCountry(countryCode.getName());
+		setEntity(countryDataBase);
 	}
 	
 	public void addCurrency(String name, String code, double mid, Date date) {
