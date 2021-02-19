@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.net.ConnectException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 
 import org.apache.http.HttpEntity;
@@ -17,20 +16,13 @@ import org.apache.http.util.EntityUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import nbpcurrencyrates.exception.DataNotFoundException;
-import nbpcurrencyrates.exception.TimeOutException;
+import nbpcurrencyrates.exception.CurrencyNotFoundException;
+import nbpcurrencyrates.exception.TimeoutException;
 
 public class JSONReader implements RateService{
 	private String NBP_TABLES = "http://api.nbp.pl/api/exchangerates/tables/A/";
 	private String NBP_RATES = "http://api.nbp.pl/api/exchangerates/rates/A/";
 	private final CloseableHttpClient closableHttpClient = HttpClients.createDefault();
-	
-	private Date getDate(Date date) {
-		Calendar calendar = Calendar.getInstance();
-		calendar.setTime(date);
-		calendar.add(Calendar.DATE, -1);
-		return calendar.getTime();
-	}
 	
 	private Date checkData(Date date) {
 		Date tempDate = date;
@@ -40,7 +32,7 @@ public class JSONReader implements RateService{
 			while(closableHttpResponse.getStatusLine().getStatusCode() != 200) {
 				httpGet.releaseConnection();
 				closableHttpResponse.close();
-				tempDate = getDate(tempDate);
+				tempDate = new GetDate().getPreviousDate(tempDate);
 				httpGet = new HttpGet(NBP_TABLES + new SimpleDateFormat("yyyy-MM-dd").format(tempDate));
 				closableHttpResponse = closableHttpClient.execute(httpGet);
 			}
@@ -60,10 +52,10 @@ public class JSONReader implements RateService{
 			if(closeableHttpResponse.getStatusLine().getStatusCode() == 200) {
 				return EntityUtils.toString(httpEntity);
 			} else {
-				throw new DataNotFoundException("Currency not found.");
+				throw new CurrencyNotFoundException("Currency not found.");
 			}
 		} catch (ConnectException ce) {
-			throw new TimeOutException("Connection timeout.");
+			throw new TimeoutException("Connection timeout.");
 		} catch (IOException ioe){
 			throw new RuntimeException(ioe);
 		}
@@ -84,7 +76,7 @@ public class JSONReader implements RateService{
 				throw new RuntimeException(pe);
 			}
 		} else {
-			throw new DataNotFoundException("Data not found.");
+			throw new CurrencyNotFoundException("Data not found.");
 		}
 	}
 	
