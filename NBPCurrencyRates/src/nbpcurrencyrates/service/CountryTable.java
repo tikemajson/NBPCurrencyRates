@@ -18,6 +18,17 @@ public class CountryTable {
 	
 	@Column(name = "name", nullable = false)
 	private String name;
+	
+	@Column(name = "cid", nullable = false)
+	private long cid;
+
+	public long getCid() {
+		return cid;
+	}
+
+	public void setCid(long cid) {
+		this.cid = cid;
+	}
 
 	public long getId() {
 		return id;

@@ -22,28 +22,20 @@ import nbpcurrencyrates.exception.TimeoutException;
 public class JsonUrlReader implements RatesService{
 	private RatesContext nextReader = new RatesContext();
 	private DataConverterService converter;
-	private String currencyCode;
-	private Date currencyDate;
 	private String NBP_URL = "http://api.nbp.pl/api/exchangerates/rates/A/";
 	private final CloseableHttpClient closableHttpClient = HttpClients.createDefault();
 	
-	public JsonUrlReader (String code, Date date, DataConverterService converter) {
-		this.currencyCode = code;
-		this.currencyDate = date;
+	public JsonUrlReader (DataConverterService converter) {
 		this.converter = converter;
 	}
 	
-	public JsonUrlReader(String nbpUrl, String code, Date date, DataConverterService converter) {
+	public JsonUrlReader(String nbpUrl, DataConverterService converter) {
 		this.NBP_URL = nbpUrl;
-		this.currencyCode = code;
-		this.currencyDate = date;
 		this.converter = converter;
 	}
 	
-	public JsonUrlReader(String nbpUrl, String code, Date date, DataConverterService converter, RatesService next) {
+	public JsonUrlReader(String nbpUrl, DataConverterService converter, RatesService next) {
 		this.NBP_URL = nbpUrl;
-		this.currencyCode = code;
-		this.currencyDate = date;
 		this.converter = converter;
 		this.nextReader.set(next);;
 	}
@@ -51,8 +43,6 @@ public class JsonUrlReader implements RatesService{
 	private Date getDateWithRate(String code, Date date) {
 		Date tempDate = date;
 		HttpGet httpGet = new HttpGet(NBP_URL + code + "/" + new SimpleDateFormat("yyyy-MM-dd").format(tempDate));
-		RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(500).setConnectionRequestTimeout(500).setSocketTimeout(500).build();
-		httpGet.setConfig(requestConfig);
 		try {
 			CloseableHttpResponse closableHttpResponse = closableHttpClient.execute(httpGet);
 			while(closableHttpResponse.getStatusLine().getStatusCode() != 200) {
@@ -75,11 +65,9 @@ public class JsonUrlReader implements RatesService{
 		}
 	}
 	
-	private String getRatesStringFromNBP(Date date, String code) {
+	private String getRatesStringFromNBP(String code, Date date) {
 		Date newDate = getDateWithRate(code, date);
 		HttpGet httpGet = new HttpGet(NBP_URL + code + "/" + new SimpleDateFormat("yyyy-MM-dd").format(newDate) + "/?format=json");
-		RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(500).setConnectionRequestTimeout(500).setSocketTimeout(500).build();
-		httpGet.setConfig(requestConfig);
 		try {
 			CloseableHttpResponse closeableHttpResponse = closableHttpClient.execute(httpGet);
 			HttpEntity httpEntity = closeableHttpResponse.getEntity();
@@ -98,14 +86,14 @@ public class JsonUrlReader implements RatesService{
 	}
 	
 	@Override
-	public Currency getRates() {
-		String jsonRateString = getRatesStringFromNBP(currencyDate, currencyCode);
+	public Currency getRates(String code, Date date) {
+		String jsonRateString = getRatesStringFromNBP(code, date);
 		Currency currency = converter.convertData(jsonRateString);
 		if(currency != null) {
 			return currency;
 		} else {
 			if(nextReader != null) {
-				return nextReader.getRates();
+				return nextReader.getRates(code, date);
 			} else {
 				throw new DataConvertException("Can't convert data to currency object.");
 			}

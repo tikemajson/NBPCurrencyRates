@@ -1,5 +1,6 @@
 package nbpcurrencyrates.service;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
 import javax.persistence.Column;
@@ -15,7 +16,7 @@ public class RateTable {
 	
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "rid", unique = true)
+	@Column(name = "id", unique = true)
 	private long id;
 	
 	@Column(name = "date", nullable = false)
@@ -23,6 +24,17 @@ public class RateTable {
 	
 	@Column(name = "mid", nullable = false)
 	private double mid;
+	
+	@Column(name = "cid", nullable = false)
+	private long cid;
+
+	public long getCid() {
+		return cid;
+	}
+
+	public void setCid(long cid) {
+		this.cid = cid;
+	}
 
 	public long getId() {
 		return id;
@@ -40,8 +52,8 @@ public class RateTable {
 		this.date = date;
 	}
 
-	public double getMid() {
-		return mid;
+	public BigDecimal getMid() {
+		return new BigDecimal(Double.toString(mid));
 	}
 
 	public void setMid(double mid) {

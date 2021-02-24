@@ -1,66 +1,185 @@
 package nbpcurrencyrates.service;
 
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import javax.persistence.Entity;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.NoResultException;
 import javax.persistence.Persistence;
-import javax.persistence.TypedQuery;
-
-import com.neovisionaries.i18n.CountryCode;
-import com.neovisionaries.i18n.CurrencyCode;
+import javax.persistence.Query;
 
 import nbpcurrencyrates.exception.NoResultDatabaseException;
 
 public class DatabaseAction {
 	private static EntityManagerFactory entityManagerFactory = Persistence.createEntityManagerFactory("NBPCurrencyRates");
-	
-	public void setEntity(CountryTable country) {
-		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
+
+	public RateTable getRateWithMaxDiff(String code, Date dateOne, Date dateTwo) {
+		EntityManager entiManager = entityManagerFactory.createEntityManager();
+		Query query = entiManager.createQuery("SELECT (SELECT rt.date FROM RateTable rt WHERE (rt.mid = (SELECT MAX(rt.mid) FROM RateTable rt WHERE rt.cid = :currencyId AND (rt.date >= :currencyDateOne AND rt.date <= :currencyDateTwo)))), (SELECT rt.date FROM RateTable rt WHERE (rt.mid = (SELECT MIN(rt.mid) FROM RateTable rt WHERE rt.cid = :currencyId AND (rt.date >= :currencyDateOne AND rt.date <= :currencyDateTwo)))), MAX(r.mid), MIN(r.mid) FROM RateTable r WHERE r.cid = :currencyId AND (r.date >= :currencyDateOne AND r.date <= :currencyDateTwo)");
+		CodeTable curCode = getCode(code);
+		List<Object[]> objects;
+		RateTable rateTable = null;
+		query.setParameter("currencyId", curCode.getId());
+		if(dateOne.before(dateTwo)) {
+			query.setParameter("currencyDateOne", dateOne);
+			query.setParameter("currencyDateTwo", dateTwo);
+		} else {
+			query.setParameter("currencyDateOne", dateTwo);
+			query.setParameter("currencyDateTwo", dateOne);
+		}
+		
 		try {
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			entityManager.persist(country);
-			entityTransaction.commit();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+			objects = query.getResultList();
+			for (Object[] obj : objects) {
+				rateTable = new RateTable();
+				Date dateMin;
+				try {
+					dateMin = new SimpleDateFormat("yyyy-MM-dd").parse(obj[1].toString());
+				} catch (ParseException e) {
+				 throw new RuntimeException(e);
+				}
+				//BigDecimal maxValue = new BigDecimal(obj[2].toString());
+				BigDecimal minValue = new BigDecimal(obj[3].toString());
+				//BigDecimal diff = maxValue.subtract(minValue);
+				//System.out.println("DateMax: " + dateMin + ", DateMin: " + dateMin + ", MaxValue : " + maxValue + ", MinValue: " + minValue + ", DIFF: " + diff);
+				rateTable.setDate(dateMin);
+				rateTable.setMid(minValue.doubleValue());
+			}
+			return rateTable;
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
+		} finally {
+			entiManager.close();
+		}
+	}
+	
+	public List<RateTable> getCurrencyListWithMinRate(String code) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT ratetable FROM RateTable ratetable WHERE ratetable.cid = :currencyId ORDER BY ratetable.mid ASC").setFirstResult(0).setMaxResults(5);
+		CodeTable curCode = getCode(code);
+		query.setParameter("currencyId", curCode.getId());
+		List<RateTable> rateList;
+		try {
+			rateList = query.getResultList();
+			if(rateList.size() > 0) {
+				return rateList;
+			} else {
+				throw new NoResultDatabaseException("No result.");
+			}
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
 		} finally {
 			entityManager.close();
 		}
 	}
 	
-	public List<CurrencyTable> getMinAndMaxValueInPeriod(String code) {
+	public List<RateTable> getCurrencyListWithMaxRate(String code) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		String query = "SELECT currency FROM CurrencyTable currency WHERE LOWER(currency.code) = LOWER(:CurrencyCode) AND (currency.mid = (SELECT MIN(currency.mid) FROM CurrencyTable currency) OR currency.mid = (SELECT MAX(currency.mid) FROM CurrencyTable currency))";
-		TypedQuery<CurrencyTable> typedQuery = entityManager.createQuery(query, CurrencyTable.class);
-		typedQuery.setParameter("CurrencyCode", code);
+		Query query = entityManager.createQuery("SELECT ratetable FROM RateTable ratetable WHERE ratetable.cid = :currencyId ORDER BY ratetable.mid DESC").setFirstResult(0).setMaxResults(5);
+		CodeTable curCode = getCode(code);
+		query.setParameter("currencyId", curCode.getId());
+		List<RateTable> rateList;
 		try {
-			List<CurrencyTable> currencyTable = typedQuery.getResultList();
-			if(currencyTable != null) {
-				return currencyTable;
+			rateList = query.getResultList();
+			if(rateList.size() > 0) {
+				return rateList;
 			} else {
 				throw new NoResultDatabaseException("No result.");
 			}
 		} catch (NoResultException e) {
-			throw new NoResultDatabaseException("Table is empty.");
+			throw new NoResultDatabaseException("No result.");
+		} finally {
+			entityManager.close();
 		}
 	}
 	
-	public boolean findCountry(String code) {
+	public List<CountryTable> getCountryWithTwoOrMoreCurrency() {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		String query = "SELECT country FROM CountryTable country WHERE LOWER(country.code) = LOWER(:CurrencyCode)";
-		TypedQuery<CountryTable> typedQuery = entityManager.createQuery(query, CountryTable.class);	
-		typedQuery.setParameter("CurrencyCode", code);
-		List<CountryTable> countryTable = null;
+		Query query = entityManager.createQuery("SELECT country.name, COUNT(country.cid) FROM CountryTable country GROUP BY country.name HAVING COUNT(country.cid) > 1");
+		List<Object[]> objects;
+		List<CountryTable> countryTable = new ArrayList<>();
 		try {
-			countryTable = typedQuery.getResultList();
-			if(countryTable.size() > 0) {
+			objects = query.getResultList();
+			for (Object[] obj : objects) {
+				String countryName = obj[0].toString();
+				CountryTable country = new CountryTable();
+				country.setName(countryName);
+				countryTable.add(country);
+			}
+			return countryTable;
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
+		} finally {
+			entityManager.close();
+		}
+	}
+	
+	public Currency getCurrencyWithMaxMidInPeriod(String code, Date dateOne, Date dateTwo) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT ratetable FROM RateTable ratetable WHERE (ratetable.cid = :currencyId) AND (ratetable.date >= :currencyDateOne AND ratetable.date <= :currencyDateTwo) ORDER BY ratetable.mid DESC").setFirstResult(0).setMaxResults(1);
+		CodeTable curCode = getCode(code);
+		RateTable rateTable = null;
+		Currency currency = null;
+		query.setParameter("currencyId", curCode.getId());
+		if(dateOne.before(dateTwo)) {
+			query.setParameter("currencyDateOne", dateOne);
+			query.setParameter("currencyDateTwo", dateTwo);
+		} else {
+			query.setParameter("currencyDateOne", dateTwo);
+			query.setParameter("currencyDateTwo", dateOne);
+		}
+		
+		try {
+			rateTable = (RateTable) query.getSingleResult();
+			currency = new Currency(curCode.getCode(), curCode.getName(), rateTable.getMid(), rateTable.getDate());
+			return currency;
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
+		} finally {
+			entityManager.close();
+		}
+	}
+	
+	public Currency getCurrencyWithMinMidInPeriod(String code, Date dateOne, Date dateTwo) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT ratetable FROM RateTable ratetable WHERE (ratetable.cid = :currencyId) AND (ratetable.date >= :currencyDateOne AND ratetable.date <= :currencyDateTwo) ORDER BY ratetable.mid ASC").setFirstResult(0).setMaxResults(1);
+		CodeTable curCode = getCode(code);
+		RateTable rateTable = null;
+		Currency currency = null;
+		query.setParameter("currencyId", curCode.getId());
+		if(dateOne.before(dateTwo)) {
+			query.setParameter("currencyDateOne", dateOne);
+			query.setParameter("currencyDateTwo", dateTwo);
+		} else {
+			query.setParameter("currencyDateOne", dateTwo);
+			query.setParameter("currencyDateTwo", dateOne);
+		}
+		
+		try {
+			rateTable = (RateTable) query.getSingleResult();
+			currency = new Currency(curCode.getCode(), curCode.getName(), rateTable.getMid(), rateTable.getDate());
+			return currency;
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
+		} finally {
+			entityManager.close();
+		}
+	}
+	
+	public boolean findCountry(long id) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT country FROM CountryTable country WHERE country.cid = :currencyId").setFirstResult(0).setMaxResults(1);	
+		query.setParameter("currencyId", id);
+		CountryTable countryTable = null;
+		try {
+			countryTable = (CountryTable) query.getSingleResult();
+			if(countryTable != null) {
 				return true;
 			} else {
 				return false;
@@ -72,66 +191,75 @@ public class DatabaseAction {
 		}
 	}
 	
-	public void AddCountryListToCurrency(String code) {
-		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
-		CurrencyCode currencyCode = CurrencyCode.getByCode(code);
-		List<CountryCode> countryList = currencyCode.getCountryList();
-		for (CountryCode country : countryList) {
-			CountryTable countryDataBase = new CountryTable();
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			countryDataBase.setCode(code);
-			countryDataBase.setCountry(country.getName());
-			entityManager.persist(countryDataBase);
-			entityTransaction.commit();
-		}
-		entityManager.close();
-	}
-	
-	public void addOneCountryToCurrency(String code) {
-		CountryTable countryDataBase = new CountryTable();
-		CurrencyCode currencyCode = CurrencyCode.getByCode(code);
-		CountryCode countryCode = currencyCode.getCountryList().get(0);
-		countryDataBase.setCode(code);
-		countryDataBase.setCountry(countryCode.getName());
-		setEntity(countryDataBase);
-	}
-	
-	public void addCurrency(String name, String code, double mid, Date date) {
+	public void addCountryToCurrency(long currencyid, String name) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		EntityTransaction entityTransaction = null;
 		try {
 			entityTransaction = entityManager.getTransaction();
 			entityTransaction.begin();
-			CurrencyTable currencyDateBase = new CurrencyTable();
-			currencyDateBase.setName(name);
-			currencyDateBase.setCode(code);
-			currencyDateBase.setMid(mid);
-			currencyDateBase.setDate(date);
-			entityManager.persist(currencyDateBase);
+			CountryTable countryTable = new CountryTable();
+			countryTable.setCid(currencyid);
+			countryTable.setName(name);
+			entityManager.persist(countryTable);
 			entityTransaction.commit();
-		} catch (Exception e){
-			if(entityTransaction != null) {
-				entityTransaction.rollback();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			entityManager.close();
+		}
+	}
+	
+	public RateTable getRate(long id, Date date) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT rate FROM RateTable rate WHERE rate.cid = :currencyId AND rate.date = :rateDate");	
+		query.setParameter("currencyId", id);
+		query.setParameter("rateDate", date);
+		RateTable rateTable = null;
+		try {
+			rateTable = (RateTable) query.getSingleResult();
+			if(rateTable != null) {
+				return rateTable;
 			} else {
-				throw new RuntimeException(e);
+				return null;
 			}
+		} catch (NoResultException e) {
+			return null;
 		} finally {
 			entityManager.close();
 		}
 	}
 	
-	public void deleteCurrency(long id) {
+	public boolean findRate(long id, Date date) {
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		Query query = entityManager.createQuery("SELECT rate FROM RateTable rate WHERE rate.cid = :currencyId AND rate.date = :rateDate");	
+		query.setParameter("currencyId", id);
+		query.setParameter("rateDate", date);
+		RateTable rateTable = null;
+		try {
+			rateTable = (RateTable) query.getSingleResult();
+			if(rateTable != null) {
+				return true;
+			} else {
+				return false;
+			}
+		} catch (NoResultException e) {
+			return false;
+		} finally {
+			entityManager.close();
+		}
+	}
+	
+	public void addRate(long currencyId, Date date, BigDecimal mid) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		EntityTransaction entityTransaction = null;
-		CurrencyTable currencyDateBase = null;
 		try {
 			entityTransaction = entityManager.getTransaction();
 			entityTransaction.begin();
-			currencyDateBase = entityManager.find(CurrencyTable.class, id);
-			entityManager.remove(currencyDateBase);
-			entityManager.persist(currencyDateBase);
+			RateTable rateTable = new RateTable();
+			rateTable.setCid(currencyId);
+			rateTable.setDate(date);
+			rateTable.setMid(mid.doubleValue());
+			entityManager.persist(rateTable);
 			entityTransaction.commit();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -140,16 +268,16 @@ public class DatabaseAction {
 		}
 	}
 	
-	public void changeName(String name, long id) {
+	public void addCode(String code, String name) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		EntityTransaction entityTransaction = null;
-		CurrencyTable currencyDateBase = null;
 		try {
 			entityTransaction = entityManager.getTransaction();
 			entityTransaction.begin();
-			currencyDateBase = entityManager.find(CurrencyTable.class, id);
-			currencyDateBase.setName(name);
-			entityManager.persist(currencyDateBase);
+			CodeTable codeTable = new CodeTable();
+			codeTable.setCode(code);
+			codeTable.setName(name);
+			entityManager.persist(codeTable);
 			entityTransaction.commit();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -158,61 +286,42 @@ public class DatabaseAction {
 		}
 	}
 	
-	public void changeCode(String newCode, long id) {
+	public CodeTable getCode(String code) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
-		CurrencyTable currencyDateBase = null;
+		Query query = entityManager.createQuery("SELECT codetable FROM CodeTable codetable WHERE LOWER(codetable.code) = LOWER(:currencyCode)");
+		query.setParameter("currencyCode", code);
+		CodeTable codeTable = null;
 		try {
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			currencyDateBase = entityManager.find(CurrencyTable.class, id);
-			currencyDateBase.setCode(newCode);
-			entityManager.persist(currencyDateBase);
-			entityTransaction.commit();
-		} catch (Exception e) {
-			throw new RuntimeException();
+			codeTable = (CodeTable) query.getSingleResult();
+			if(codeTable != null) {
+				return codeTable;
+			} else {
+				return null;
+			}
+		} catch (NoResultException e) {
+			throw new NoResultDatabaseException("No result.");
 		} finally {
 			entityManager.close();
 		}
 	}
 	
-	public void changeMid(double mid, long id) {
+	public boolean findCode(String code) {
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
-		CurrencyTable currencyDateBase = null;
+		Query query = entityManager.createQuery("SELECT codetable FROM CodeTable codetable WHERE LOWER(codetable.code) = LOWER(:currencyCode)");
+		query.setParameter("currencyCode", code);
+		CodeTable codeTable = null;
 		try {
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			currencyDateBase = entityManager.find(CurrencyTable.class, id);
-			currencyDateBase.setMid(mid);
-			entityManager.persist(currencyDateBase);
-			entityTransaction.commit();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+			codeTable = (CodeTable) query.getSingleResult();
+			if(codeTable != null) {
+				return true;
+			} else {
+				return false;
+			}
+		} catch (NoResultException e) {
+			return false;
 		} finally {
 			entityManager.close();
 		}
 	}
-	
-	public void changeCountry(String code, String country) {
-		
-	}
-	
-	public void changeDate(Date date, long id) {
-		EntityManager entityManager = entityManagerFactory.createEntityManager();
-		EntityTransaction entityTransaction = null;
-		CurrencyTable currencyDateBase = null;
-		try {
-			entityTransaction = entityManager.getTransaction();
-			entityTransaction.begin();
-			currencyDateBase = entityManager.find(CurrencyTable.class, id);
-			currencyDateBase.setDate(date);
-			entityManager.persist(currencyDateBase);
-			entityTransaction.commit();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		} finally {
-			entityManager.close();
-		}
-	}
+
 }

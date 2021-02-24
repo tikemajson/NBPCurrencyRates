@@ -1,5 +1,7 @@
 package nbpcurrencyrates.service;
 
+import java.util.Date;
+
 public class RatesContext {
 	private RatesService strategy;
 	
@@ -7,7 +9,7 @@ public class RatesContext {
 		this.strategy = strategy;
 	}
 	
-	public Currency getRates() {
-		return this.strategy.getRates();
+	public Currency getRates(String code, Date date) {
+		return this.strategy.getRates(code, date);
 	}
 }
