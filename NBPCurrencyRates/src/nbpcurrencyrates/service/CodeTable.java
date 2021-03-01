@@ -10,11 +10,31 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.NamedQueries;
+import javax.persistence.NamedQuery;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
+import org.hibernate.annotations.SQLInsert;
+
 @Entity
 @Table(name = "CodeTable")
+@NamedQueries(
+		{
+			@NamedQuery (
+				name = "CodeTable.getCode",
+				query = "SELECT codetable FROM CodeTable codetable WHERE LOWER(codetable.code) = LOWER(:currencyCode)"
+			),
+			@NamedQuery (
+				name = "CodeTable.findCode",
+				query = "SELECT codetable FROM CodeTable codetable WHERE LOWER(codetable.code) = LOWER(:currencyCode)"
+			),
+			@NamedQuery (
+				name = "CodeTable.getRatesFromDatabase",
+				query = "SELECT codetable FROM CodeTable codetable JOIN FETCH codetable.rate ratetable WHERE (ratetable.date = :rateDate) AND (ratetable.cid = :currencyId)"
+			),
+		}
+)
 public class CodeTable {
 	
 	@Id

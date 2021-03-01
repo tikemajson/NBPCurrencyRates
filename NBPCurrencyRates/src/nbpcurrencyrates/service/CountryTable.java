@@ -5,10 +5,32 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.NamedQueries;
+import javax.persistence.NamedQuery;
 import javax.persistence.Table;
 
 @Entity
 @Table(name = "CountryTable")
+@NamedQueries(
+		{
+			@NamedQuery (
+				name = "CountryTable.getCountryList",
+				query = "SELECT country FROM CountryTable country WHERE (country.cid = :currencyId)"
+			),
+			@NamedQuery (
+				name = "CountryTable.findCountry",
+				query = "SELECT country FROM CountryTable country WHERE (country.cid = :currencyId)"
+			),
+			@NamedQuery (
+				name = "CountryTable.getCountryWithTwoOrMoreCurrency",
+				query = "SELECT country.name, COUNT(country.cid) FROM CountryTable country GROUP BY country.name HAVING COUNT(country.cid) > 1"
+			),
+			@NamedQuery (
+				name = "CountryTable.getCountry",
+				query = "SELECT country FROM CountryTable country WHERE country.cid = :currencyId AND country.name = :countryName"
+			)
+		}
+)
 public class CountryTable {
 
 	@Id

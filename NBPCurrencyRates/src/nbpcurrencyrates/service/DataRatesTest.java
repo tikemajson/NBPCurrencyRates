@@ -1,23 +1,37 @@
 package nbpcurrencyrates.service;
 
+import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
+import org.hamcrest.Matcher;
+
 import org.hibernate.boot.model.relational.Database;
 import org.junit.Assert;
 import org.junit.Test;
+
+import nbpcurrencyrates.database.service.CodeTableAddService;
+import nbpcurrencyrates.database.service.CodeTableGetService;
+import nbpcurrencyrates.database.service.CountryTableAddService;
+import nbpcurrencyrates.database.service.CountryTableGetService;
+import nbpcurrencyrates.database.service.RateTableAddService;
+import nbpcurrencyrates.readers.DatabaseReader;
 
 public class DataRatesTest {
 	RatesContext ratesContext = new RatesContext();
 	
 	@Test
-	public void should_return_currency_if_currency_is_not_null() throws ParseException {
+	public void should_return_expected_date_if_currency_with_given_date_exists() throws ParseException {
 		//given
 		String dateString = "2021-02-17";
-		String code = "USD";
 		Date date = new SimpleDateFormat("yyyy-MM-dd").parse(dateString);
+		String code = "CHF";
+		String name = "frank szfajcarski";
+		BigDecimal currencyValue = new BigDecimal("2.0005");
+		CodeTableAddService codeTableAddService = new CodeTableAddService();
+		codeTableAddService.addCurrency(code, name, currencyValue, date);
 		Currency currency;
 		
 		//when
@@ -25,25 +39,67 @@ public class DataRatesTest {
 		currency = ratesContext.getRates(code, date);
 		
 		//then
-		Assert.assertNotNull(currency);
+		Assert.assertEquals(date, currency.getDate());
 
 	}
 
 	
 	@Test
-	public void should_return_true_if_country_exists (){
+	public void should_return_expected_country() {
 		//given
-		DatabaseAction databaseAction = new DatabaseAction();
-		CodeTable currencyCode = databaseAction.getCode("USD");
-		long currencyId = currencyCode.getId();
+		String code = "USD";
+		String name = "dolar amerykañski";
+		String country = "Meksyk";
+		CodeTableGetService codeTableGetService = new CodeTableGetService();
+		CodeTableAddService codeTableAddService = new CodeTableAddService();
+		CountryTableGetService countryTableGetService = new CountryTableGetService();
+		CountryTableAddService countryTableAddService = new CountryTableAddService();
+		codeTableAddService.addCode(code, name);
+		CodeTable codeTable = codeTableGetService.getCode(code);
+		countryTableAddService.addCountryToCurrency(code, country);
 		
 		//when
-		boolean trueIfCodeHaveCountry = databaseAction.findCountry(currencyId);
+		CountryTable expectedCountry = countryTableGetService.getCountry(code, country);
 		
 		//then
-		Assert.assertTrue(trueIfCodeHaveCountry);
+		Assert.assertEquals(country, expectedCountry.getName());
 	}
 	
+	@Test
+	public void should_return_expected_rate_for_given_date_and_code() throws ParseException {
+		//given
+		String code = "EUR";
+		String dateString = "2021-02-25";
+		BigDecimal expectedValue = new BigDecimal("4.5143");
+		Date date = new SimpleDateFormat("yyyy-MM-dd").parse(dateString);
+		RatesContext ratesContext = new RatesContext();
+		ratesContext.set(new DatabaseReader());
+		
+		//when
+		Currency currency = ratesContext.getRates(code, date);
+		
+		//then
+		Assert.assertEquals(expectedValue, currency.getMid());
+	}
+	
+	
+	@Test
+	public void should_return_expected_code() {
+		//given
+		String expectedCode = "ABC";
+		String expectedName = "Algiera";
+		CodeTableAddService codeTableAddService = new CodeTableAddService();
+		CodeTableGetService codeTableGetService = new CodeTableGetService();
+		codeTableAddService.addCode(expectedCode, expectedName);
+		
+		//when
+		CodeTable code = codeTableGetService.getCode(expectedCode);
+		
+		//then
+		Assert.assertEquals(expectedCode, code.getCode());
+		Assert.assertEquals(expectedName, code.getName());
+	}
+	/*
 	@Test
 	public void should_return_currency_if_find_min_value_in_period() throws ParseException {
 		//given
@@ -87,7 +143,7 @@ public class DataRatesTest {
 		DatabaseAction databaseAction = new DatabaseAction();
 		CodeTable currencyCode = databaseAction.getCode("EUR");
 		long currencyId = currencyCode.getId();
-		String dateString = "2021-02-05";
+		String dateString = "2021-02-06";
 		Date date = new SimpleDateFormat("yyyy-MM-dd").parse(dateString);
 		
 		//when
@@ -156,4 +212,5 @@ public class DataRatesTest {
 		//then
 		Assert.assertNotNull(rate);
 	}
+	*/
 }

@@ -6,15 +6,26 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.EntityTransaction;
+import javax.persistence.Persistence;
+
+import nbpcurrencyrates.database.service.CodeTableGetService;
+import nbpcurrencyrates.database.service.CountryTableGetService;
+import nbpcurrencyrates.database.service.RateTableGetService;
+import nbpcurrencyrates.readers.DatabaseReader;
+
 public class SalesDocumentService {
+	private static EntityManagerFactory entityManagerFactory = Persistence.createEntityManagerFactory("NBPCurrencyRates");
+	
 	public static void insert() {
 		String url = "http://api.nbp.pl/api/exchangerates/rates/A/";
-		String dateString = "2021-01-11";
-		String dateStringTwo = "2021-02-20";
+		String dateString = "2021-02-26";
+		String dateStringTwo = "2021-02-05";
 		String code = "EUR";
 		Date date;
 		Date dateTwo;
-		DatabaseAction databaseAction = new DatabaseAction();
 		
 		try {
 			date = new SimpleDateFormat("yyyy-MM-dd").parse(dateString);
@@ -22,41 +33,23 @@ public class SalesDocumentService {
 		} catch (ParseException e) {
 			throw new RuntimeException(e);
 		}
-
-		RatesContext ratesContext = new RatesContext();
-		ratesContext.set(new DatabaseReader());
-		Currency currency = ratesContext.getRates(code, date);
-		System.out.println("KURS: " + currency.getCode() + ", " + currency.getName() + ", " + currency.getMid() + ", " + new SimpleDateFormat("yyyy-MM-dd").format(currency.getDate()));
-		
-		currency = databaseAction.getCurrencyWithMinMidInPeriod(code, date, dateTwo);
-		System.out.println("MIN: " + currency.getCode() + ", " + currency.getName() + ", " + currency.getMid() + ", " + new SimpleDateFormat("yyyy-MM-dd").format(currency.getDate()));
-		
-		currency = databaseAction.getCurrencyWithMaxMidInPeriod(code, date, dateTwo);
-		System.out.println("MAX: " + currency.getCode() + ", " + currency.getName() + ", " + currency.getMid() + ", " + new SimpleDateFormat("yyyy-MM-dd").format(currency.getDate()));
-	
-		List<CountryTable> countryList = databaseAction.getCountryWithTwoOrMoreCurrency();
-		for (CountryTable countryTable : countryList) {
-			System.out.println("COUNTRY: " + countryTable.getName());
+ 
+		CountryTableGetService countryTableGetService = new CountryTableGetService();
+		CountryTable country = countryTableGetService.getCountry("CAD", "Canada");
+		EntityManager entityManager = entityManagerFactory.createEntityManager();
+		EntityTransaction entityTransaction;
+		try {
+			entityTransaction = entityManager.getTransaction();
+			entityTransaction.begin();
+			country = entityManager.find(CountryTable.class, 12L);
+			country.setName("Kanada");
+			entityTransaction.commit();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			entityManager.close();
 		}
 		
-		System.out.println("==========================");
-		
-		List<RateTable> rateList = databaseAction.getCurrencyListWithMinRate("EUR");
-		for (RateTable rate : rateList) {
-			System.out.println("MinValuesRate: " + rate.getMid() + ", " + new SimpleDateFormat("yyyy-MM-dd").format(rate.getDate()));
-		}
-		
-		System.out.println("==========================");
-		
-		rateList = databaseAction.getCurrencyListWithMaxRate("EUR");
-		for (RateTable rate : rateList) {
-			System.out.println("MaxValuesRate: " + rate.getMid() + ", " + new SimpleDateFormat("yyyy-MM-dd").format(rate.getDate()));
-		}
-		
-		System.out.println("==========================");
-		
-		RateTable rateTable = databaseAction.getRateWithMaxDiff(code, date, dateTwo);
-		System.out.println("Currency with greatest diff beetwen " + dateString + " - " + dateStringTwo + ", date: " + new SimpleDateFormat("yyyy-MM-dd").format(rateTable.getDate()) + ", mid: " + rateTable.getMid());
 	}
 	
 	public static void main(String[] args) {
